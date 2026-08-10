@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev": "kill-port 3000 5000 && concurrently -k -n BACKEND,FRONTEND \"npm --prefix backend run dev\" \"npm --prefix frontend run dev -- --port 3000 --strictPort --open\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4",
+    "kill-port": "^2.0.1"
+  }
+}

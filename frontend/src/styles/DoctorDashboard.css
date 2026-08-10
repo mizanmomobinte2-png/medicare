@@ -1,0 +1,173 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f5f6f7;
+  color: #222;
+}
+
+.doctor-dashboard {
+  min-height: 100vh;
+  display: flex;
+  background: #f5f6f7;
+}
+
+.doctor-sidebar {
+  width: 240px;
+  min-height: 100vh;
+  background: white;
+  border-right: 1px solid #ccc;
+  padding: 25px 15px;
+  flex-shrink: 0;
+}
+
+.doctor-brand {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.doctor-sidebar-name {
+  margin: 0 0 30px 0;
+  color: #555;
+  font-size: 15px;
+}
+
+.doctor-sidebar button {
+  display: block;
+  width: 100%;
+  padding: 13px 12px;
+  margin-bottom: 5px;
+  border: 0;
+  background: white;
+  text-align: left;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.doctor-sidebar button:hover {
+  background: #eeeeee;
+}
+
+.logout-button {
+  margin-top: 30px;
+  border-top: 1px solid #ccc !important;
+}
+
+.doctor-main {
+  flex: 1;
+  padding: 35px;
+  min-width: 0;
+}
+
+.doctor-main h1 {
+  margin-top: 0;
+  font-size: 30px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 15px;
+  margin: 30px 0;
+}
+
+.summary-box {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 20px;
+}
+
+.summary-box h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.summary-box p {
+  margin: 15px 0 0;
+  font-size: 30px;
+  font-weight: 600;
+}
+
+.doctor-section {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 25px;
+  margin-bottom: 25px;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 11px;
+  text-align: left;
+}
+
+th {
+  background: #eeeeee;
+}
+
+.doctor-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(200px, 1fr));
+  gap: 18px;
+  max-width: 850px;
+}
+
+.doctor-form div {
+  display: flex;
+  flex-direction: column;
+}
+
+.doctor-form label {
+  margin-bottom: 7px;
+}
+
+.doctor-form input,
+.doctor-form select,
+td input,
+td select {
+  padding: 9px;
+  border: 1px solid #aaa;
+  font-size: 15px;
+}
+
+.doctor-form button,
+.small-button {
+  padding: 10px 16px;
+  border: 1px solid #999;
+  background: #eeeeee;
+  cursor: pointer;
+}
+
+.doctor-message {
+  background: white;
+  border: 1px solid #bbb;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.profile-details p {
+  padding: 12px 0;
+  margin: 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.doctor-loading {
+  padding: 40px;
+  font-size: 18px;
+}

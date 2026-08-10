@@ -1,0 +1,99 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background-color: #f5f6f7;
+  color: #222;
+}
+
+.admin-register-page {
+  min-height: 100vh;
+}
+
+.simple-header {
+  height: 100px;
+  display: flex;
+  align-items: center;
+  padding-left: 35px;
+  background-color: white;
+  border-bottom: 1px solid #ccc;
+}
+
+.simple-header h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.register-container {
+  display: flex;
+  justify-content: center;
+  padding-top: 55px;
+}
+
+.register-box {
+  width: 500px;
+  padding: 40px;
+  border: 1px solid #ccc;
+  background-color: white;
+}
+
+.register-box h1 {
+  text-align: center;
+  font-size: 30px;
+  margin-top: 0;
+  margin-bottom: 35px;
+}
+
+.register-box label {
+  display: block;
+  font-size: 18px;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+.register-box input {
+  width: 100%;
+  height: 52px;
+  padding: 10px;
+  font-size: 17px;
+  border: 1px solid #999;
+}
+
+.register-box button {
+  width: 100%;
+  height: 52px;
+  margin-top: 28px;
+  font-size: 18px;
+  background-color: #eeeeee;
+  border: 1px solid #999;
+  cursor: pointer;
+}
+
+.login-text {
+  text-align: center;
+  margin-top: 28px;
+  margin-bottom: 0;
+  font-size: 17px;
+}
+
+.message {
+  color: red;
+  margin-top: 15px;
+}
+
+.login-text a {
+  color: blue;
+}
+
+.register-box select {
+  width: 100%;
+  height: 52px;
+  padding: 10px;
+  font-size: 17px;
+  border: 1px solid #999;
+  background-color: white;
+}
