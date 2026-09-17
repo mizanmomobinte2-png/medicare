@@ -217,46 +217,51 @@ function PatientDashboard() {
     doctor.full_name ||
     `Doctor #${doctor.doctor_id}`;
 
-  const safeFetch =
-    async (url) => {
-      try {
-        const response =
-          await fetch(url);
+ const safeFetch = async (url) => {
+  try {
+    const token = localStorage.getItem("token");
 
-        const text =
-          await response.text();
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
 
-        let data = null;
+        Authorization: token
+          ? `Bearer ${token}`
+          : "",
+      },
+    });
 
-        try {
-          data = text
-            ? JSON.parse(text)
-            : null;
-        } catch {
-          console.error(
-            "Invalid JSON:",
-            url,
-            text
-          );
-        }
+    const text = await response.text();
 
-        return {
-          ok:
-            response.ok,
-          data,
-        };
-      } catch (error) {
-        console.error(
-          error
-        );
+    let data = null;
 
-        return {
-          ok: false,
-          data: null,
-        };
-      }
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (error) {
+      console.error(
+        "Invalid JSON response:",
+        text
+      );
+    }
+
+    return {
+      ok: response.ok,
+      data: data,
     };
 
+  } catch (error) {
+
+    console.error(
+      "Fetch error:",
+      error
+    );
+
+    return {
+      ok: false,
+      data: null,
+    };
+  }
+};
   const loadAll =
     async () => {
       if (!patientId) {

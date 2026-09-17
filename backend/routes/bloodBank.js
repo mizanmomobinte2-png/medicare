@@ -90,7 +90,7 @@ router.get(
 
         FROM blood_request br
 
-        LEFT JOIN staffs s
+        LEFT JOIN staff s
           ON br.staff_id = s.staff_id
 
         LEFT JOIN blood_bank bb
@@ -464,7 +464,7 @@ router.post(
         await pool.query(
           `
           SELECT staff_id
-          FROM staffs
+          FROM staff
           WHERE staff_id = $1
           `,
           [staff_id]

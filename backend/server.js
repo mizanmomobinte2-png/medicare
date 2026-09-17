@@ -214,7 +214,7 @@ app.get(
 
         pool.query(`
           SELECT COUNT(*) AS count
-          FROM staffs
+          FROM staff
         `),
 
         pool.query(`

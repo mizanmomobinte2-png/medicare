@@ -35,7 +35,7 @@ const BILL_BASE_CTE = `
       ) AS patient_id,
 
       CASE
-        WHEN b.appointment_id IS NOT NULL
+        WHEN b.appt_id IS NOT NULL
           THEN 'appointment'
 
         WHEN b.adm_id IS NOT NULL
@@ -59,8 +59,8 @@ const BILL_BASE_CTE = `
       END AS source_type,
 
       CASE
-        WHEN b.appointment_id IS NOT NULL
-          THEN b.appointment_id
+        WHEN b.appt_id IS NOT NULL
+          THEN b.appt_id
 
         WHEN b.adm_id IS NOT NULL
           THEN b.adm_id
@@ -98,7 +98,7 @@ const BILL_BASE_CTE = `
       ON b.adm_id = ad.adm_id
 
     LEFT JOIN appointment a
-      ON b.appointment_id = a.appt_id
+      ON b.appt_id = a.appt_id
   )
 `;
 
@@ -137,7 +137,7 @@ router.get("/", async (req, res) => {
       LEFT JOIN patient p
         ON bb.patient_id = p.patient_id
 
-      LEFT JOIN staffs st
+      LEFT JOIN staff st
         ON bb.staff_id = st.staff_id
 
       ORDER BY
@@ -195,7 +195,7 @@ router.get(
         LEFT JOIN patient p
           ON bb.patient_id = p.patient_id
 
-        LEFT JOIN staffs st
+        LEFT JOIN staff st
           ON bb.staff_id = st.staff_id
 
         WHERE bb.staff_id = $1
@@ -261,7 +261,7 @@ router.get(
         LEFT JOIN patient p
           ON bb.patient_id = p.patient_id
 
-        LEFT JOIN staffs st
+        LEFT JOIN staff st
           ON bb.staff_id = st.staff_id
 
         WHERE bb.patient_id = $1
@@ -314,7 +314,7 @@ router.get("/:id", async (req, res) => {
       LEFT JOIN patient p
         ON bb.patient_id = p.patient_id
 
-      LEFT JOIN staffs st
+      LEFT JOIN staff st
         ON bb.staff_id = st.staff_id
 
       WHERE bb.bill_id = $1
@@ -442,7 +442,7 @@ router.post(
         await client.query(
           `
           SELECT staff_id
-          FROM staffs
+          FROM staff
           WHERE staff_id = $1
           `,
           [staff_id]
@@ -518,7 +518,7 @@ router.post(
             `
             SELECT bill_id
             FROM billing
-            WHERE appointment_id = $1
+            WHERE appt_id = $1
             `,
             [source_id]
           );
@@ -749,7 +749,7 @@ router.post(
           INSERT INTO billing
           (
             adm_id,
-            appointment_id,
+            appt_id,
             staff_id,
             bill_date,
             amount,

@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS ward CASCADE;
 DROP TABLE IF EXISTS admin_doctor CASCADE;
 DROP TABLE IF EXISTS admin_staff CASCADE;
 DROP TABLE IF EXISTS doctor CASCADE;
-DROP TABLE IF EXISTS staffs CASCADE;
+DROP TABLE IF EXISTS staff CASCADE;
 DROP TABLE IF EXISTS patient CASCADE;
 DROP TABLE IF EXISTS department CASCADE;
 DROP TABLE IF EXISTS admin CASCADE;
@@ -49,7 +49,7 @@ CREATE TABLE department (
 );
 
 -- ============ STAFF ============
-CREATE TABLE staffs (
+CREATE TABLE staff (
     staff_id    SERIAL PRIMARY KEY,
     name        VARCHAR(100) NOT NULL,
     email       VARCHAR(100) UNIQUE,
@@ -74,7 +74,7 @@ CREATE TABLE doctor (
 -- Admin manages staff and doctors
 CREATE TABLE admin_staff (
     admin_id INT REFERENCES admin(user_id) ON DELETE CASCADE,
-    staff_id INT REFERENCES staffs(staff_id) ON DELETE CASCADE,
+    staff_id INT REFERENCES staff(staff_id) ON DELETE CASCADE,
     PRIMARY KEY (admin_id, staff_id)
 );
 
@@ -134,7 +134,7 @@ CREATE TABLE ward_blood_supply (
 
 CREATE TABLE blood_request (
     request_id   SERIAL PRIMARY KEY,
-    staff_id     INT REFERENCES staffs(staff_id) ON DELETE SET NULL,
+    staff_id     INT REFERENCES staff(staff_id) ON DELETE SET NULL,
     bank_id      INT REFERENCES blood_bank(bank_id) ON DELETE SET NULL,
     quantity     INT,
     request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -157,7 +157,7 @@ CREATE TABLE appointment (
     appt_id    SERIAL PRIMARY KEY,
     patient_id INT REFERENCES patient(patient_id) ON DELETE CASCADE,
     doctor_id  INT REFERENCES doctor(doctor_id) ON DELETE SET NULL,
-    staff_id   INT REFERENCES staffs(staff_id) ON DELETE SET NULL,
+    staff_id   INT REFERENCES staff(staff_id) ON DELETE SET NULL,
     appt_date  DATE,
     appt_time  TIME,
     status     VARCHAR(20) DEFAULT 'pending',
@@ -229,7 +229,7 @@ CREATE TABLE admission (
 CREATE TABLE complaint (
     complaint_id   SERIAL PRIMARY KEY,
     patient_id     INT REFERENCES patient(patient_id) ON DELETE CASCADE,
-    staff_id       INT REFERENCES staffs(staff_id) ON DELETE SET NULL,
+    staff_id       INT REFERENCES staff(staff_id) ON DELETE SET NULL,
     complaint_type VARCHAR(100),
     date           DATE DEFAULT CURRENT_DATE,
     status         VARCHAR(20) DEFAULT 'open',

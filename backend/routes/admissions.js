@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
         ON ad.doctor_id = d.doctor_id
 
       LEFT JOIN appointment a
-        ON ad.appointment_id = a.appt_id
+        ON ad.appt_id = a.appt_id
 
       ORDER BY
         ad.adm_date DESC NULLS FIRST,
@@ -94,7 +94,7 @@ router.get(
           ON ad.doctor_id = d.doctor_id
 
         LEFT JOIN appointment a
-          ON ad.appointment_id = a.appt_id
+          ON ad.appt_id = a.appt_id
 
         WHERE ad.status = 'pending'
 
@@ -148,7 +148,7 @@ router.get(
           ON ad.room_id = r.room_id
 
         LEFT JOIN appointment a
-          ON ad.appointment_id = a.appt_id
+          ON ad.appt_id = a.appt_id
 
         WHERE ad.doctor_id = $1
 
@@ -203,7 +203,7 @@ router.get(
           ON ad.doctor_id = d.doctor_id
 
         LEFT JOIN appointment a
-          ON ad.appointment_id = a.appt_id
+          ON ad.appt_id = a.appt_id
 
         WHERE ad.patient_id = $1
 
@@ -236,18 +236,18 @@ router.post(
   async (req, res) => {
     const {
       doctor_id,
-      appointment_id,
+      appt_id,
       notes,
     } = req.body;
 
     try {
       if (
         !doctor_id ||
-        !appointment_id
+        !appt_id
       ) {
         return res.status(400).json({
           error:
-            "doctor_id and appointment_id are required",
+            "doctor_id and appt_id are required",
         });
       }
 
@@ -273,7 +273,7 @@ router.post(
             AND a.doctor_id = $2
           `,
           [
-            appointment_id,
+            appt_id,
             doctor_id,
           ]
         );
@@ -311,9 +311,9 @@ router.post(
 
           FROM admission
 
-          WHERE appointment_id = $1
+          WHERE appt_id = $1
           `,
-          [appointment_id]
+          [appt_id]
         );
 
       if (existing.rows.length > 0) {
@@ -336,7 +336,7 @@ router.post(
             charge,
             notes,
             doctor_id,
-            appointment_id
+            appt_id
           )
 
           VALUES
@@ -358,7 +358,7 @@ router.post(
             appointment.patient_id,
             notes || null,
             doctor_id,
-            appointment_id,
+            appt_id,
           ]
         );
 
@@ -765,7 +765,7 @@ router.get("/:id", async (req, res) => {
         ON ad.doctor_id = d.doctor_id
 
       LEFT JOIN appointment a
-        ON ad.appointment_id = a.appt_id
+        ON ad.appt_id = a.appt_id
 
       WHERE ad.adm_id = $1
       `,
@@ -810,7 +810,7 @@ router.post("/", async (req, res) => {
     charge,
     notes,
     doctor_id,
-    appointment_id,
+    appt_id,
   } = req.body;
 
   try {
@@ -827,7 +827,7 @@ router.post("/", async (req, res) => {
           charge,
           notes,
           doctor_id,
-          appointment_id
+          appt_id
         )
 
         VALUES
@@ -846,7 +846,7 @@ router.post("/", async (req, res) => {
           charge ?? null,
           notes || null,
           doctor_id || null,
-          appointment_id || null,
+          appt_id || null,
         ]
       );
 
@@ -895,7 +895,7 @@ router.put("/:id", async (req, res) => {
     charge,
     notes,
     doctor_id,
-    appointment_id,
+    appt_id,
   } = req.body;
 
   try {
@@ -953,10 +953,10 @@ router.put("/:id", async (req, res) => {
               doctor_id
             ),
 
-          appointment_id =
+          appt_id =
             COALESCE(
               $9,
-              appointment_id
+              appt_id
             )
 
         WHERE adm_id = $10
@@ -972,7 +972,7 @@ router.put("/:id", async (req, res) => {
           charge,
           notes,
           doctor_id,
-          appointment_id,
+          appt_id,
           req.params.id,
         ]
       );

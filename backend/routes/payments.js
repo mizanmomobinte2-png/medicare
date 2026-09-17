@@ -32,7 +32,7 @@ const PAYMENT_QUERY = `
     pt.name AS patient_name,
 
     CASE
-      WHEN b.appointment_id IS NOT NULL
+      WHEN b.appt_id IS NOT NULL
         THEN 'appointment'
 
       WHEN b.adm_id IS NOT NULL
@@ -48,7 +48,7 @@ const PAYMENT_QUERY = `
     END AS source_type,
 
     COALESCE(
-      b.appointment_id,
+      b.appt_id,
       b.adm_id,
       bs.surgery_id,
       bl.test_id
@@ -63,7 +63,7 @@ const PAYMENT_QUERY = `
     ON b.adm_id = a.adm_id
 
   LEFT JOIN appointment ap
-    ON b.appointment_id = ap.appt_id
+    ON b.appt_id = ap.appt_id
 
   LEFT JOIN billing_surgery bs
     ON b.bill_id = bs.bill_id
@@ -295,7 +295,7 @@ router.post("/", async (req, res) => {
           ON b.adm_id = a.adm_id
 
         LEFT JOIN appointment ap
-          ON b.appointment_id =
+          ON b.appt_id =
              ap.appt_id
 
         LEFT JOIN billing_surgery bs

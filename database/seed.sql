@@ -12,7 +12,7 @@ INSERT INTO department (dept_name, description, floor, phone, email) VALUES
 ('General Medicine', 'General health checkups', 1, '01744444444', 'general@medicare.com');
 
 -- Staff
-INSERT INTO staffs (name, email, password, dept_id, salary, phone) VALUES
+INSERT INTO staff (name, email, password, dept_id, salary, phone) VALUESD
 ('Sarah Ahmed', 'sarah@medicare.com', 'staff123', 1, 35000, '01811111111'),
 ('Karim Hassan', 'karim@medicare.com', 'staff123', 2, 32000, '01822222222'),
 ('Nadia Islam', 'nadia@medicare.com', 'staff123', 3, 30000, '01833333333');

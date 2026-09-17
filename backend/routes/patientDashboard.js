@@ -936,7 +936,7 @@ router.get(
             ON a.doctor_id =
                d.doctor_id
 
-          LEFT JOIN staffs s
+          LEFT JOIN staff s
             ON a.staff_id =
                s.staff_id
 

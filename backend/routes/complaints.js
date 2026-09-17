@@ -8,7 +8,7 @@ router.get("/", async (req, res) => {
       SELECT c.*, p.name AS patient_name, s.name AS staff_name
       FROM complaint c
       LEFT JOIN patient p ON c.patient_id = p.patient_id
-      LEFT JOIN staffs s ON c.staff_id = s.staff_id
+      LEFT JOIN staff s ON c.staff_id = s.staff_id
       ORDER BY c.date DESC
     `);
     res.json(result.rows);
@@ -23,7 +23,7 @@ router.get("/:id", async (req, res) => {
       SELECT c.*, p.name AS patient_name, s.name AS staff_name
       FROM complaint c
       LEFT JOIN patient p ON c.patient_id = p.patient_id
-      LEFT JOIN staffs s ON c.staff_id = s.staff_id
+      LEFT JOIN staff s ON c.staff_id = s.staff_id
       WHERE c.complaint_id = $1
     `, [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Complaint not found" });

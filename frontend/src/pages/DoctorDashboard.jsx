@@ -444,7 +444,7 @@ function DoctorDashboard() {
       admissions.find(
         (admission) =>
           Number(
-            admission.appointment_id
+            admission.appt_id
           ) ===
           Number(
             appointment.appt_id
@@ -473,7 +473,7 @@ function DoctorDashboard() {
           body: JSON.stringify({
             doctor_id: doctorId,
 
-            appointment_id:
+            appt_id:
               appointment.appt_id,
 
             notes:
@@ -1244,7 +1244,7 @@ function DoctorDashboard() {
                         admissions.find(
                           (item) =>
                             Number(
-                              item.appointment_id
+                              item.appt_id
                             ) ===
                             Number(
                               appointment.appt_id
