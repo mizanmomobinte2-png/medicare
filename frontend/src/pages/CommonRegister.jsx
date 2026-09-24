@@ -2,11 +2,21 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/AdminRegister.css";
 
+const API = "http://localhost:5000/api";
+
 function CommonRegister() {
   const navigate = useNavigate();
 
-  const [role, setRole] = useState("admin");
+  // Admin and doctor accounts can only be created by a logged-in admin
+  // (POST /api/admin and POST /api/doctors are admin-only on the server).
+  // Staff and patients can register themselves.
+  const isAdminLoggedIn =
+    localStorage.getItem("role") === "admin" &&
+    Boolean(localStorage.getItem("token"));
+
+  const [role, setRole] = useState("patient");
   const [departments, setDepartments] = useState([]);
+  const [workRoles, setWorkRoles] = useState([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -26,6 +36,7 @@ function CommonRegister() {
 
     // Staff
     salary: "",
+    staff_role: "",
 
     // Patient
     dob: "",
@@ -40,10 +51,7 @@ function CommonRegister() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await fetch(
-          "http://localhost:5000/api/departments"
-        );
-
+        const response = await fetch(`${API}/departments`);
         const data = await response.json();
 
         if (response.ok && Array.isArray(data)) {
@@ -55,6 +63,26 @@ function CommonRegister() {
     };
 
     fetchDepartments();
+  }, []);
+
+  // =========================
+  // GET STAFF WORK ROLES
+  // =========================
+  useEffect(() => {
+    const fetchWorkRoles = async () => {
+      try {
+        const response = await fetch(`${API}/staff/work-roles`);
+        const data = await response.json();
+
+        if (response.ok && Array.isArray(data)) {
+          setWorkRoles(data);
+        }
+      } catch (error) {
+        console.error("Work role fetch error:", error);
+      }
+    };
+
+    fetchWorkRoles();
   }, []);
 
   // =========================
@@ -92,11 +120,9 @@ function CommonRegister() {
       let url = "";
       let body = {};
 
-      // =====================
       // ADMIN
-      // =====================
       if (role === "admin") {
-        url = "http://localhost:5000/api/admin";
+        url = `${API}/admin`;
 
         body = {
           username: formData.username.trim(),
@@ -106,11 +132,9 @@ function CommonRegister() {
         };
       }
 
-      // =====================
       // DOCTOR
-      // =====================
       else if (role === "doctor") {
-        url = "http://localhost:5000/api/doctors";
+        url = `${API}/doctors`;
 
         body = {
           name: formData.full_name.trim(),
@@ -124,29 +148,26 @@ function CommonRegister() {
         };
       }
 
-      // =====================
       // STAFF
-      // =====================
       else if (role === "staff") {
-        url = "http://localhost:5000/api/staff";
+        url = `${API}/staff`;
 
         body = {
           name: formData.full_name.trim(),
           email: formData.email.trim(),
           password: formData.password,
-          dept_id: Number(formData.department_id),
-          salary: formData.salary
-            ? Number(formData.salary)
+          dept_id: formData.department_id
+            ? Number(formData.department_id)
             : null,
+          salary: formData.salary ? Number(formData.salary) : null,
           phone: formData.phone_number.trim(),
+          staff_role: formData.staff_role,
         };
       }
 
-      // =====================
       // PATIENT
-      // =====================
       else if (role === "patient") {
-        url = "http://localhost:5000/api/patients";
+        url = `${API}/patients`;
 
         body = {
           name: formData.full_name.trim(),
@@ -171,24 +192,17 @@ function CommonRegister() {
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage(
-          data.message ||
-            data.error ||
-            "Registration failed"
-        );
-
+        setMessage(data.message || data.error || "Registration failed");
         return;
       }
 
       alert(`${role} registration successful.`);
 
-      navigate("/login");
+      navigate(isAdminLoggedIn ? "/admin-dashboard" : "/login");
     } catch (error) {
       console.error("Registration error:", error);
 
-      setMessage(
-        "Server connection failed. Make sure backend is running."
-      );
+      setMessage("Server connection failed. Make sure backend is running.");
     } finally {
       setLoading(false);
     }
@@ -196,7 +210,6 @@ function CommonRegister() {
 
   return (
     <div className="admin-register-page">
-
       {/* HEADER */}
       <header className="simple-header">
         <h2>MediCare</h2>
@@ -204,42 +217,27 @@ function CommonRegister() {
 
       <div className="register-container">
         <div className="register-box">
-
           <h1>Registration</h1>
 
           <form onSubmit={handleSubmit}>
-
-            {/* =========================
-                ROLE
-            ========================== */}
+            {/* ROLE */}
 
             <label>Select Role</label>
 
-            <select
-              value={role}
-              onChange={handleRoleChange}
-            >
-              <option value="admin">
-                Admin
-              </option>
-
-              <option value="doctor">
-                Doctor
-              </option>
-
-              <option value="staff">
-                Staff
-              </option>
-
-              <option value="patient">
-                Patient
-              </option>
+            <select value={role} onChange={handleRoleChange}>
+              {isAdminLoggedIn && <option value="admin">Admin</option>}
+              {isAdminLoggedIn && <option value="doctor">Doctor</option>}
+              <option value="staff">Staff</option>
+              <option value="patient">Patient</option>
             </select>
 
+            {!isAdminLoggedIn && (
+              <p style={{ fontSize: 13, color: "#64748b", margin: "6px 0 0" }}>
+                Doctor and admin accounts are created by the hospital admin.
+              </p>
+            )}
 
-            {/* =========================
-                ADMIN FORM
-            ========================== */}
+            {/* ADMIN FORM */}
 
             {role === "admin" && (
               <>
@@ -267,10 +265,7 @@ function CommonRegister() {
               </>
             )}
 
-
-            {/* =========================
-                DOCTOR FORM
-            ========================== */}
+            {/* DOCTOR FORM */}
 
             {role === "doctor" && (
               <>
@@ -335,15 +330,10 @@ function CommonRegister() {
                   onChange={handleChange}
                   required
                 >
-                  <option value="">
-                    Select Department
-                  </option>
+                  <option value="">Select Department</option>
 
                   {departments.map((department) => (
-                    <option
-                      key={department.dept_id}
-                      value={department.dept_id}
-                    >
+                    <option key={department.dept_id} value={department.dept_id}>
                       {department.dept_name}
                     </option>
                   ))}
@@ -351,10 +341,7 @@ function CommonRegister() {
               </>
             )}
 
-
-            {/* =========================
-                STAFF FORM
-            ========================== */}
+            {/* STAFF FORM */}
 
             {role === "staff" && (
               <>
@@ -385,9 +372,10 @@ function CommonRegister() {
                 <input
                   type="password"
                   name="password"
-                  placeholder="Enter password"
+                  placeholder="Enter password (min 6 characters)"
                   value={formData.password}
                   onChange={handleChange}
+                  minLength={6}
                   required
                 />
 
@@ -401,6 +389,23 @@ function CommonRegister() {
                   onChange={handleChange}
                 />
 
+                <label>Work Role</label>
+
+                <select
+                  name="staff_role"
+                  value={formData.staff_role}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select Work Role</option>
+
+                  {workRoles.map((workRole) => (
+                    <option key={workRole.key} value={workRole.key}>
+                      {workRole.label}
+                    </option>
+                  ))}
+                </select>
+
                 <label>Department</label>
 
                 <select
@@ -408,15 +413,10 @@ function CommonRegister() {
                   value={formData.department_id}
                   onChange={handleChange}
                 >
-                  <option value="">
-                    Select Department
-                  </option>
+                  <option value="">Select Department</option>
 
                   {departments.map((department) => (
-                    <option
-                      key={department.dept_id}
-                      value={department.dept_id}
-                    >
+                    <option key={department.dept_id} value={department.dept_id}>
                       {department.dept_name}
                     </option>
                   ))}
@@ -435,10 +435,7 @@ function CommonRegister() {
               </>
             )}
 
-
-            {/* =========================
-                PATIENT FORM
-            ========================== */}
+            {/* PATIENT FORM */}
 
             {role === "patient" && (
               <>
@@ -501,21 +498,10 @@ function CommonRegister() {
                   value={formData.gender}
                   onChange={handleChange}
                 >
-                  <option value="">
-                    Select Gender
-                  </option>
-
-                  <option value="Male">
-                    Male
-                  </option>
-
-                  <option value="Female">
-                    Female
-                  </option>
-
-                  <option value="Other">
-                    Other
-                  </option>
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
                 </select>
 
                 <label>Blood Group</label>
@@ -525,10 +511,7 @@ function CommonRegister() {
                   value={formData.blood_group}
                   onChange={handleChange}
                 >
-                  <option value="">
-                    Select Blood Group
-                  </option>
-
+                  <option value="">Select Blood Group</option>
                   <option value="A+">A+</option>
                   <option value="A-">A-</option>
                   <option value="B+">B+</option>
@@ -551,39 +534,22 @@ function CommonRegister() {
               </>
             )}
 
-
             {/* ERROR MESSAGE */}
 
-            {message && (
-              <p className="message">
-                {message}
-              </p>
-            )}
-
+            {message && <p className="message">{message}</p>}
 
             {/* REGISTER BUTTON */}
 
-            <button
-              type="submit"
-              disabled={loading}
-            >
-              {loading
-                ? "Registering..."
-                : "Register"}
+            <button type="submit" disabled={loading}>
+              {loading ? "Registering..." : "Register"}
             </button>
-
           </form>
-
 
           {/* LOGIN LINK */}
 
           <p className="login-text">
-            Already have an account?{" "}
-            <Link to="/login">
-              Login
-            </Link>
+            Already have an account? <Link to="/login">Login</Link>
           </p>
-
         </div>
       </div>
     </div>

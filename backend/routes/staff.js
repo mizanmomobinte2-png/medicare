@@ -1,799 +1,325 @@
 const express = require("express");
-
-console.log("STAFF ROUTE FILE LOADED");
-
 const router = express.Router();
-
 const pool = require("../db");
-
 const bcrypt = require("bcrypt");
 
-const {
-  generateToken,
-  verifyToken
-} = require("../middleware/authMiddleware");
-
+const { generateToken, verifyToken } = require("../middleware/authMiddleware");
 const authorize = require("../middleware/roleMiddleware");
+const { isValidRole, listRoles } = require("../config/workRoles");
 
+// Never send the password hash to the browser
+const PUBLIC_COLS = `
+  s.staff_id, s.name, s.email, s.salary, s.phone,
+  s.status, s.dept_id, s.staff_role, s.created_at
+`;
 
-
-// =========================================
-// GET ALL STAFF
-// ADMIN ONLY
-// =========================================
-
-router.get(
-"/",
-verifyToken,
-authorize("admin"),
-async(req,res)=>{
-
-try{
-
-
-const result = await pool.query(`
-
-SELECT
-s.*,
-d.dept_name
-
-FROM staff s
-
-LEFT JOIN department d
-
-ON s.dept_id = d.dept_id
-
-ORDER BY s.staff_id
-
-`);
-
-
-res.json(result.rows);
-
-
-
-}catch(err){
-
-console.error(
-"Get staff error:",
-err
-);
-
-
-res.status(500).json({
-error:err.message
-});
-
-
-}
-
-});
-
-
-
-
+const toDeptId = (value) => {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
 
 // =========================================
-// STAFF LOGIN
-// PUBLIC
+// WORK ROLE LIST (public: used by register form + admin page)
 // =========================================
 
-router.post(
-"/login",
-async(req,res)=>{
-
-
-const {
-email,
-password
-}=req.body;
-
-
-
-try{
-
-
-if(!email || !password){
-
-return res.status(400).json({
-
-error:
-"Email and password are required"
-
+router.get("/work-roles", (req, res) => {
+  res.json(listRoles());
 });
-
-}
-
-
-
-const result = await pool.query(
-`
-
-SELECT *
-
-FROM staff
-
-WHERE email=$1
-
-`,
-[
-email
-]
-);
-
-
-
-if(result.rows.length===0){
-
-return res.status(401).json({
-
-error:
-"Invalid email or password"
-
-});
-
-}
-
-
-
-const staff = result.rows[0];
-
-
-
-if(!staff.password){
-
-return res.status(401).json({
-
-error:
-"This staff account has no password"
-
-});
-
-}
-
-
-
-
-const matched = await bcrypt.compare(
-password,
-staff.password
-);
-
-
-
-if(!matched){
-
-return res.status(401).json({
-
-error:
-"Invalid email or password"
-
-});
-
-}
-
-
-
-
-const token = generateToken(
-staff.staff_id,
-"staff"
-);
-
-
-
-res.status(200).json({
-
-message:
-"Staff login successful",
-
-token,
-
-role:"staff",
-
-
-staff:{
-
-
-staff_id:
-staff.staff_id,
-
-
-name:
-staff.name,
-
-
-email:
-staff.email,
-
-
-phone:
-staff.phone,
-
-
-salary:
-staff.salary,
-
-
-dept_id:
-staff.dept_id,
-
-
-status:
-staff.status
-
-
-}
-
-
-});
-
-
-
-}catch(err){
-
-
-console.error(
-"Staff login error:",
-err
-);
-
-
-res.status(500).json({
-
-error:err.message
-
-});
-
-
-}
-
-
-});
-
-
-
-
-
-
 
 // =========================================
-// CREATE STAFF
-// PUBLIC REGISTER
+// GET ALL STAFF (admin)
 // =========================================
 
+router.get("/", verifyToken, authorize("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ${PUBLIC_COLS}, d.dept_name
+      FROM staff s
+      LEFT JOIN department d ON s.dept_id = d.dept_id
+      ORDER BY s.staff_id
+    `);
 
-router.post(
-"/",
-async(req,res)=>{
-
-
-const {
-
-name,
-
-email,
-
-password,
-
-salary,
-
-phone,
-
-dept_id
-
-}=req.body;
-
-
-
-try{
-
-
-if(!name || !email || !password){
-
-return res.status(400).json({
-
-error:
-"Name, email and password are required"
-
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Get staff error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
-
-}
-
-
-
-const existingStaff = await pool.query(
-`
-
-SELECT staff_id
-
-FROM staff
-
-WHERE email=$1
-
-`,
-[
-email
-]
-);
-
-
-
-if(existingStaff.rows.length>0){
-
-return res.status(409).json({
-
-error:
-"Staff with this email already exists"
-
-});
-
-}
-
-
-
-
-const hashedPassword = await bcrypt.hash(
-password,
-10
-);
-
-
-
-
-const result = await pool.query(
-`
-
-INSERT INTO staff
-
-(
-
-name,
-
-email,
-
-password,
-
-salary,
-
-phone,
-
-status,
-
-dept_id
-
-)
-
-
-VALUES
-
-($1,$2,$3,$4,$5,$6,$7)
-
-
-RETURNING
-
-staff_id,
-
-name,
-
-email,
-
-salary,
-
-phone,
-
-status,
-
-dept_id
-
-
-`,
-[
-
-name,
-
-email,
-
-hashedPassword,
-
-salary || null,
-
-phone || null,
-
-"active",
-
-dept_id || null
-
-]
-
-);
-
-
-
-
-
-res.status(201).json({
-
-message:
-"Staff registered successfully",
-
-staff:
-result.rows[0]
-
-});
-
-
-
-
-}catch(err){
-
-
-console.error(
-"Staff registration error:",
-err
-);
-
-
-res.status(500).json({
-
-error:err.message
-
-});
-
-
-}
-
-
-
-});
-
-
-
-
-
-
-
 
 // =========================================
-// GET SINGLE STAFF
-// ADMIN + OWN STAFF
+// STAFF LOGIN (public)
 // =========================================
 
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
 
-router.get(
-"/:id",
-verifyToken,
-async(req,res)=>{
+  try {
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ error: "Email and password are required" });
+    }
 
+    const result = await pool.query(
+      `SELECT * FROM staff WHERE LOWER(email) = LOWER($1)`,
+      [String(email).trim()]
+    );
 
-try{
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
 
+    const staff = result.rows[0];
 
-const staffId = Number(req.params.id);
+    if (!staff.password) {
+      return res
+        .status(401)
+        .json({ error: "This staff account has no password" });
+    }
 
+    const matched = await bcrypt.compare(password, staff.password);
 
+    if (!matched) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
 
-if(
-req.user.role==="staff" &&
-req.user.id !== staffId
-){
+    if (
+      staff.status &&
+      String(staff.status).toLowerCase() !== "active"
+    ) {
+      return res
+        .status(403)
+        .json({ error: "This staff account is not active. Contact admin." });
+    }
 
-return res.status(403).json({
+    const token = generateToken(staff.staff_id, "staff");
 
-message:
-"You can access only your own profile"
-
+    res.status(200).json({
+      message: "Staff login successful",
+      token,
+      role: "staff",
+      staff: {
+        staff_id: staff.staff_id,
+        name: staff.name,
+        email: staff.email,
+        phone: staff.phone,
+        dept_id: staff.dept_id,
+        status: staff.status,
+        staff_role: staff.staff_role,
+      },
+    });
+  } catch (err) {
+    console.error("Staff login error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
-
-}
-
-
-
-
-if(
-req.user.role!=="admin" &&
-req.user.role!=="staff"
-){
-
-return res.status(403).json({
-
-message:
-"Access forbidden"
-
-});
-
-}
-
-
-
-
-
-const result = await pool.query(
-`
-
-SELECT
-
-s.*,
-
-d.dept_name
-
-
-FROM staff s
-
-
-LEFT JOIN department d
-
-ON s.dept_id=d.dept_id
-
-
-WHERE s.staff_id=$1
-
-
-`,
-[
-staffId
-]
-
-);
-
-
-
-if(result.rows.length===0){
-
-return res.status(404).json({
-
-error:
-"Staff not found"
-
-});
-
-}
-
-
-
-res.json(result.rows[0]);
-
-
-
-}catch(err){
-
-
-res.status(500).json({
-
-error:err.message
-
-});
-
-
-}
-
-
-});
-
-
-
-
-
-
 
 // =========================================
-// UPDATE STAFF
-// ADMIN ONLY
+// REGISTER STAFF (public) - work role is required
 // =========================================
 
+router.post("/", async (req, res) => {
+  const { name, email, password, salary, phone, dept_id, staff_role } =
+    req.body;
 
-router.put(
-"/:id",
-verifyToken,
-authorize("admin"),
-async(req,res)=>{
+  try {
+    if (!name || !email || !password) {
+      return res
+        .status(400)
+        .json({ error: "Name, email and password are required" });
+    }
 
+    if (String(password).length < 6) {
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 6 characters" });
+    }
 
-const {
+    if (!isValidRole(staff_role)) {
+      return res.status(400).json({ error: "A valid work role is required" });
+    }
 
-name,
+    const existing = await pool.query(
+      `SELECT staff_id FROM staff WHERE LOWER(email) = LOWER($1)`,
+      [String(email).trim()]
+    );
 
-email,
+    if (existing.rows.length > 0) {
+      return res
+        .status(409)
+        .json({ error: "Staff with this email already exists" });
+    }
 
-salary,
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-phone,
+    const result = await pool.query(
+      `
+      INSERT INTO staff
+        (name, email, password, salary, phone, status, dept_id, staff_role)
+      VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
+      RETURNING staff_id, name, email, salary, phone, status, dept_id, staff_role
+      `,
+      [
+        String(name).trim(),
+        String(email).trim(),
+        hashedPassword,
+        salary === "" || salary === undefined ? null : salary,
+        phone || null,
+        toDeptId(dept_id),
+        staff_role,
+      ]
+    );
 
-status,
+    res.status(201).json({
+      message: "Staff registered successfully",
+      staff: result.rows[0],
+    });
+  } catch (err) {
+    console.error("Staff registration error:", err);
 
-dept_id
+    if (err.code === "23505") {
+      return res
+        .status(409)
+        .json({ error: "Staff with this email already exists" });
+    }
 
-}=req.body;
-
-
-
-try{
-
-
-const result = await pool.query(
-`
-
-UPDATE staff
-
-SET
-
-
-name=COALESCE($1,name),
-
-
-email=COALESCE($2,email),
-
-
-salary=COALESCE($3,salary),
-
-
-phone=COALESCE($4,phone),
-
-
-status=COALESCE($5,status),
-
-
-dept_id=COALESCE($6,dept_id)
-
-
-
-WHERE staff_id=$7
-
-
-
-RETURNING *
-
-
-`,
-[
-
-name,
-
-email,
-
-salary,
-
-phone,
-
-status,
-
-dept_id,
-
-req.params.id
-
-]
-
-);
-
-
-
-
-
-if(result.rows.length===0){
-
-return res.status(404).json({
-
-error:
-"Staff not found"
-
+    res.status(500).json({ error: err.message });
+  }
 });
-
-}
-
-
-
-res.json({
-
-message:
-"Staff updated successfully",
-
-staff:
-result.rows[0]
-
-});
-
-
-
-
-}catch(err){
-
-
-res.status(500).json({
-
-error:err.message
-
-});
-
-
-}
-
-
-});
-
-
-
-
-
-
 
 // =========================================
-// DELETE STAFF
-// ADMIN ONLY
+// GET SINGLE STAFF (admin, or the staff himself)
 // =========================================
 
+router.get("/:id", verifyToken, async (req, res) => {
+  try {
+    const staffId = Number(req.params.id);
 
-router.delete(
-"/:id",
-verifyToken,
-authorize("admin"),
-async(req,res)=>{
+    if (!Number.isInteger(staffId) || staffId <= 0) {
+      return res.status(400).json({ error: "Invalid staff id" });
+    }
 
+    const isOwner = req.user.role === "staff" && req.user.id === staffId;
 
-try{
+    if (req.user.role !== "admin" && !isOwner) {
+      return res
+        .status(403)
+        .json({ error: "You can access only your own profile" });
+    }
 
+    const result = await pool.query(
+      `
+      SELECT ${PUBLIC_COLS}, d.dept_name
+      FROM staff s
+      LEFT JOIN department d ON s.dept_id = d.dept_id
+      WHERE s.staff_id = $1
+      `,
+      [staffId]
+    );
 
-const result = await pool.query(
-`
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Staff not found" });
+    }
 
-DELETE FROM staff
-
-WHERE staff_id=$1
-
-
-RETURNING staff_id
-
-
-`,
-[
-req.params.id
-]
-
-);
-
-
-
-
-if(result.rows.length===0){
-
-return res.status(404).json({
-
-error:
-"Staff not found"
-
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-}
+// =========================================
+// UPDATE STAFF (admin) - includes work role, status, password reset
+// =========================================
 
+router.put("/:id", verifyToken, authorize("admin"), async (req, res) => {
+  const { name, email, salary, phone, status, dept_id, staff_role, password } =
+    req.body;
 
+  try {
+    if (staff_role && !isValidRole(staff_role)) {
+      return res.status(400).json({ error: "Invalid work role" });
+    }
 
-res.json({
+    if (status && !["active", "inactive"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "Status must be active or inactive" });
+    }
 
-message:
-"Staff deleted successfully"
+    let hashedPassword = null;
 
+    if (password) {
+      if (String(password).length < 6) {
+        return res
+          .status(400)
+          .json({ error: "Password must be at least 6 characters" });
+      }
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE staff
+      SET
+        name       = COALESCE($1, name),
+        email      = COALESCE($2, email),
+        salary     = COALESCE($3, salary),
+        phone      = COALESCE($4, phone),
+        status     = COALESCE($5, status),
+        dept_id    = COALESCE($6, dept_id),
+        staff_role = COALESCE($7, staff_role),
+        password   = COALESCE($8, password)
+      WHERE staff_id = $9
+      RETURNING staff_id, name, email, salary, phone, status, dept_id, staff_role
+      `,
+      [
+        name || null,
+        email || null,
+        salary === "" ? null : salary ?? null,
+        phone ?? null,
+        status || null,
+        toDeptId(dept_id),
+        staff_role || null,
+        hashedPassword,
+        req.params.id,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Staff not found" });
+    }
+
+    res.json({
+      message: "Staff updated successfully",
+      staff: result.rows[0],
+    });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Email already in use" });
+    }
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// =========================================
+// DELETE STAFF (admin)
+// =========================================
 
+router.delete("/:id", verifyToken, authorize("admin"), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `DELETE FROM staff WHERE staff_id = $1 RETURNING staff_id`,
+      [req.params.id]
+    );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Staff not found" });
+    }
 
-}catch(err){
-
-
-res.status(500).json({
-
-error:err.message
-
+    res.json({ message: "Staff deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
-
-
-}
-
-
-});
-
-
-
-
-
 
 module.exports = router;

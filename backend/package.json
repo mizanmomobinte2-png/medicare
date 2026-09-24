@@ -14,5 +14,8 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.22.0"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true
   }
 }
