@@ -18,6 +18,7 @@ import DoctorsPage from "./pages/DoctorsPage";
 import StaffPage from "./pages/StaffPage";
 import StaffRoleManagementPage from "./pages/StaffRoleManagementPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import AmbulancePage from "./pages/AmbulancePage";
 import DepartmentsPage from "./pages/DepartmentsPage";
 import WardsPage from "./pages/WardsPage";
 import RoomsPage from "./pages/RoomsPage";
@@ -147,6 +148,16 @@ function App() {
         element={
           <ProtectedRoute allowedRole="admin">
             <AnalyticsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* NEW: admin manages ambulance fleet */}
+      <Route
+        path="/ambulance-fleet"
+        element={
+          <ProtectedRoute allowedRole="admin">
+            <AmbulancePage />
           </ProtectedRoute>
         }
       />

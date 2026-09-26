@@ -134,6 +134,8 @@ const LEGACY_STAFF_ROUTES = [
   ["POST", /^\/api\/blood-bank\/requests$/, ["admin"]],
   ["POST", /^\/api\/billing\/staff\/create$/, ["admin"]],
   ["PATCH", /^\/api\/billing\/\d+\/staff-approve$/, ["admin"]],
+  ["PUT", /^\/api\/billing\/\d+$/, ["admin"]],
+  ["DELETE", /^\/api\/billing\/\d+$/, ["admin"]],
 
   // read-only lists: any hospital user except patients
   ["GET", /^\/api\/appointments\/unassigned\/all$/, ["admin", "doctor", "staff"]],
@@ -196,6 +198,8 @@ app.use("/api/surgeries", require("./routes/surgeries"));
 app.use("/api/admissions", require("./routes/admissions"));
 
 app.use("/api/complaints", require("./routes/complaints"));
+
+app.use("/api/ambulance", require("./routes/ambulance"));
 
 app.use("/api/insurance", require("./routes/insurance"));
 

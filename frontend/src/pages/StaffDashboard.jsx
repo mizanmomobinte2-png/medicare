@@ -14,6 +14,7 @@ const PAGES = {
   labtests: "Lab Tests",
   surgeries: "Surgeries",
   blood: "Blood Requests",
+  ambulance: "Ambulance",
   billing: "Billing",
   payments: "Payments",
   complaints: "Complaints",
@@ -35,6 +36,10 @@ const LOADERS = {
   blood: [
     ["bank", "/blood/bank"],
     ["bloodRequests", "/blood/requests"],
+  ],
+  ambulance: [
+    ["vehicles", "/ambulance/vehicles"],
+    ["ambulanceRequests", "/ambulance/requests"],
   ],
   billing: [
     ["bills", "/billing/bills"],
@@ -148,15 +153,14 @@ export default function StaffDashboard() {
     discount: "0",
     tax: "0",
   });
+  const [payForm, setPayForm] = useState({ bill_id: "", amount: "", method: "cash", ref_no: "" });
 
   const list = (key) => (Array.isArray(data[key]) ? data[key] : []);
   const has = (module) => Boolean(me?.modules?.includes(module));
   const mine = (row) => row.staff_id === me?.staff_id;
 
   const val = (key, field, fallback = "") =>
-    forms[key] && forms[key][field] !== undefined
-      ? forms[key][field]
-      : fallback;
+    forms[key] && forms[key][field] !== undefined ? forms[key][field] : fallback;
 
   const setF = (key, field, value) =>
     setForms((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
@@ -165,9 +169,7 @@ export default function StaffDashboard() {
     const jobs = modules.flatMap((m) => LOADERS[m] || []);
     const unique = [...new Map(jobs.map((j) => [j[0], j])).values()];
 
-    const results = await Promise.allSettled(
-      unique.map(([, path]) => call(path))
-    );
+    const results = await Promise.allSettled(unique.map(([, path]) => call(path)));
 
     const next = {};
     let failure = "";
@@ -212,8 +214,6 @@ export default function StaffDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // run an action, show the message, then refresh lists
-  // (refresh also happens on failure, so a list never stays stale)
   async function act(path, method, body, okMessage) {
     try {
       const result = await call(path, method, body);
@@ -227,8 +227,7 @@ export default function StaffDashboard() {
     }
   }
 
-  const claim = (kind, id, text) =>
-    act(`/${kind}/${id}/claim`, "POST", undefined, text);
+  const claim = (kind, id, text) => act(`/${kind}/${id}/claim`, "POST", undefined, text);
 
   // ---------- profile ----------
 
@@ -256,17 +255,49 @@ export default function StaffDashboard() {
 
   // ---------- appointments ----------
 
-  const saveAppointment = (a) => {
-    const k = `appt:${a.appt_id}`;
-    return act(
+  const saveAppointmentNotes = (a) =>
+    act(
       `/appointments/${a.appt_id}`,
       "PATCH",
-      {
-        appt_date: val(k, "appt_date", dateOnly(a.appt_date)) || null,
-        appt_time: val(k, "appt_time", timeOnly(a.appt_time)) || null,
-        notes: val(k, "notes", a.notes || ""),
-      },
-      "Appointment updated."
+      { notes: val(`appt:${a.appt_id}`, "notes", a.notes || "") },
+      "Notes saved."
+    );
+
+  const decideAppointment = (a, decision) => {
+    const k = `appt:${a.appt_id}`;
+
+    if (decision === "rejected") {
+      const reason = val(k, "reject_reason", "");
+      if (!reason) {
+        setMessage("A reason is required to reject an appointment.");
+        return;
+      }
+      return act(`/appointments/${a.appt_id}/decide`, "PATCH", { decision, reason }, "Appointment rejected.");
+    }
+
+    return act(`/appointments/${a.appt_id}/decide`, "PATCH", { decision }, "Appointment confirmed.");
+  };
+
+  const loadFreeSlots = async (a) => {
+    try {
+      const slots = await call(`/appointments/${a.appt_id}/free-slots`);
+      setData((prev) => ({ ...prev, [`freeSlots:${a.appt_id}`]: slots }));
+    } catch (err) {
+      setMessage(err.message);
+    }
+  };
+
+  const rescheduleAppointment = (a) => {
+    const slotId = val(`appt:${a.appt_id}`, "slot_id");
+    if (!slotId) {
+      setMessage("Select a free slot first.");
+      return;
+    }
+    return act(
+      `/appointments/${a.appt_id}/reschedule`,
+      "PATCH",
+      { slot_id: Number(slotId) },
+      "Appointment rescheduled."
     );
   };
 
@@ -358,8 +389,40 @@ export default function StaffDashboard() {
     if (result) setBloodForm({ bank_id: "", quantity: "" });
   }
 
-  const decide = (r, decision) =>
+  const decideBlood = (r, decision) =>
     act(`/blood/requests/${r.request_id}/decision`, "PATCH", { decision }, `Request ${decision}.`);
+
+  // ---------- ambulance ----------
+
+  const assignAmbulance = (r) => {
+    const vehicleId = val(`amb:${r.request_id}`, "ambulance_id");
+    if (!vehicleId) {
+      setMessage("Select a vehicle first.");
+      return;
+    }
+    return act(
+      `/ambulance/requests/${r.request_id}/assign`,
+      "PATCH",
+      { ambulance_id: Number(vehicleId) },
+      "Ambulance assigned."
+    );
+  };
+
+  const completeAmbulance = (r) => {
+    const charge = val(`amb:${r.request_id}`, "charge", r.base_fare ?? "");
+    if (charge === "" || Number(charge) < 0) {
+      setMessage("Enter a valid charge.");
+      return;
+    }
+    return act(
+      `/ambulance/requests/${r.request_id}/complete`,
+      "PATCH",
+      { charge: Number(charge) },
+      "Trip completed and bill created."
+    );
+  };
+
+  const availableVehicles = list("vehicles").filter((v) => v.status === "available");
 
   // ---------- billing ----------
 
@@ -396,8 +459,24 @@ export default function StaffDashboard() {
     }
   }
 
-  const approveBill = (id) =>
-    act(`/billing/${id}/approve`, "PATCH", {}, "Bill approved. Patient can pay now.");
+  const approveBill = (id) => act(`/billing/${id}/approve`, "PATCH", {}, "Bill approved. Patient can pay now.");
+
+  function collectPayment(e) {
+    e.preventDefault();
+
+    return act(
+      `/billing/${payForm.bill_id}/pay`,
+      "POST",
+      {
+        amount: Number(payForm.amount),
+        method: payForm.method,
+        ref_no: payForm.ref_no || null,
+      },
+      "Payment collected."
+    ).then((result) => {
+      if (result) setPayForm({ bill_id: "", amount: "", method: "cash", ref_no: "" });
+    });
+  }
 
   // ---------- complaints ----------
 
@@ -437,7 +516,15 @@ export default function StaffDashboard() {
     summary.push(["Open Surgery Requests", list("surgeries").filter((s) => !s.staff_id).length]);
     summary.push(["My Surgeries", list("surgeries").filter(mine).length]);
   }
-  if (has("blood")) summary.push(["Pending Blood Requests", list("bloodRequests").filter((r) => r.status === "pending").length]);
+  if (has("blood"))
+    summary.push([
+      "Pending Blood Requests",
+      list("bloodRequests").filter((r) => r.status === "pending").length,
+    ]);
+  if (has("ambulance")) {
+    summary.push(["Pending Ambulance Requests", list("ambulanceRequests").filter((r) => r.status === "pending").length]);
+    summary.push(["My Active Trips", list("ambulanceRequests").filter((r) => mine(r) && r.status === "assigned").length]);
+  }
   if (has("billing")) summary.push(["Pending Bills", list("bills").filter((b) => b.status === "pending").length]);
   if (has("payments")) summary.push(["Payments", list("payments").length]);
   if (has("complaints")) {
@@ -470,8 +557,7 @@ export default function StaffDashboard() {
 
         {noRole && (
           <div className="staff-message">
-            No work role is assigned to your account yet. Please ask the admin to
-            assign one.
+            No work role is assigned to your account yet. Please ask the admin to assign one.
           </div>
         )}
 
@@ -523,6 +609,11 @@ export default function StaffDashboard() {
         {page === "appointments" && (
           <section className="staff-section">
             <h1>My Appointments</h1>
+            <p style={{ color: "#64748b" }}>
+              Confirm or reject a pending appointment. Confirming creates the visit-fee bill
+              automatically. To move an appointment, load free slots first, then pick one and
+              reschedule.
+            </p>
             <Table
               rowKey="appt_id"
               empty="No appointments assigned to you yet."
@@ -530,27 +621,20 @@ export default function StaffDashboard() {
               cols={[
                 { h: "Patient", r: (a) => a.patient_name || "-" },
                 { h: "Doctor", r: (a) => a.doctor_name || "-" },
+                { h: "Date", r: (a) => dateOnly(a.appt_date) },
+                { h: "Time", r: (a) => timeOnly(a.appt_time) },
+                { h: "Fee", r: (a) => money(a.fee) },
                 {
-                  h: "Date",
+                  h: "Status",
                   r: (a) => (
-                    <input
-                      type="date"
-                      value={val(`appt:${a.appt_id}`, "appt_date", dateOnly(a.appt_date))}
-                      onChange={(e) => setF(`appt:${a.appt_id}`, "appt_date", e.target.value)}
-                    />
+                    <>
+                      {a.status}
+                      {a.status === "rejected" && a.reject_reason && (
+                        <div style={{ fontSize: 12, color: "#b91c1c" }}>{a.reject_reason}</div>
+                      )}
+                    </>
                   ),
                 },
-                {
-                  h: "Time",
-                  r: (a) => (
-                    <input
-                      type="time"
-                      value={val(`appt:${a.appt_id}`, "appt_time", timeOnly(a.appt_time))}
-                      onChange={(e) => setF(`appt:${a.appt_id}`, "appt_time", e.target.value)}
-                    />
-                  ),
-                },
-                { h: "Status", r: (a) => a.status },
                 {
                   h: "Notes",
                   r: (a) => (
@@ -560,7 +644,54 @@ export default function StaffDashboard() {
                     />
                   ),
                 },
-                { h: "Action", r: (a) => <button onClick={() => saveAppointment(a)}>Save</button> },
+                {
+                  h: "Action",
+                  r: (a) => {
+                    if (a.status === "pending") {
+                      return (
+                        <>
+                          <button onClick={() => decideAppointment(a, "confirmed")}>Confirm</button>{" "}
+                          <input
+                            placeholder="Reject reason"
+                            style={{ width: 100 }}
+                            value={val(`appt:${a.appt_id}`, "reject_reason", "")}
+                            onChange={(e) => setF(`appt:${a.appt_id}`, "reject_reason", e.target.value)}
+                          />{" "}
+                          <button onClick={() => decideAppointment(a, "rejected")}>Reject</button>
+                        </>
+                      );
+                    }
+
+                    if (a.status === "confirmed") {
+                      const slots = list(`freeSlots:${a.appt_id}`);
+                      return (
+                        <>
+                          <button onClick={() => saveAppointmentNotes(a)}>Save Notes</button>{" "}
+                          <button onClick={() => loadFreeSlots(a)}>Load Free Slots</button>
+                          {slots.length > 0 && (
+                            <>
+                              <select
+                                value={val(`appt:${a.appt_id}`, "slot_id", "")}
+                                onChange={(e) => setF(`appt:${a.appt_id}`, "slot_id", e.target.value)}
+                              >
+                                <option value="">Select slot</option>
+                                {slots.map((s) => (
+                                  <option key={s.slot_id} value={s.slot_id}>
+                                    {dateOnly(s.slot_date)} {timeOnly(s.start_time)}-
+                                    {timeOnly(s.end_time)}
+                                  </option>
+                                ))}
+                              </select>{" "}
+                              <button onClick={() => rescheduleAppointment(a)}>Reschedule</button>
+                            </>
+                          )}
+                        </>
+                      );
+                    }
+
+                    return <button onClick={() => saveAppointmentNotes(a)}>Save Notes</button>;
+                  },
+                },
               ]}
             />
           </section>
@@ -578,6 +709,7 @@ export default function StaffDashboard() {
                 { h: "Doctor", r: (a) => a.doctor_name || "-" },
                 { h: "Date", r: (a) => dateOnly(a.appt_date) },
                 { h: "Time", r: (a) => timeOnly(a.appt_time) || "-" },
+                { h: "Fee", r: (a) => money(a.fee) },
                 { h: "Reason", r: (a) => a.reason || "-" },
                 {
                   h: "Action",
@@ -672,7 +804,11 @@ export default function StaffDashboard() {
                 cols={[
                   { h: "Patient", r: (a) => a.patient_name || "-" },
                   { h: "Doctor", r: (a) => a.doctor_name || "-" },
-                  { h: "Room", r: (a) => (a.room_id ? `Room ${a.room_id}${a.room_type ? ` (${a.room_type})` : ""}` : "-") },
+                  {
+                    h: "Room",
+                    r: (a) =>
+                      a.room_id ? `Room ${a.room_id}${a.room_type ? ` (${a.room_type})` : ""}` : "-",
+                  },
                   { h: "Date", r: (a) => dateOnly(a.adm_date) },
                   { h: "Charge", r: (a) => money(a.charge) },
                   { h: "Admitted By", r: assignedTo },
@@ -711,11 +847,11 @@ export default function StaffDashboard() {
             <h1>Lab Test Requests</h1>
             <Table
               rowKey="test_id"
-              empty="No lab test requests."
+              empty="No patient-approved lab tests waiting."
               rows={list("labtests")}
               cols={[
                 { h: "Patient", r: (t) => t.patient_name || "-" },
-                { h: "Doctor", r: (t) => t.doctor_name || "-" },
+                { h: "Doctor", r: (t) => t.doctor_name || "Self-requested" },
                 { h: "Test", r: (t) => t.test_name || "-" },
                 { h: "Type", r: (t) => t.type || "-" },
                 {
@@ -767,7 +903,7 @@ export default function StaffDashboard() {
             <h1>Surgery Requests</h1>
             <Table
               rowKey="surgery_id"
-              empty="No surgery requests."
+              empty="No patient-approved surgeries waiting."
               rows={list("surgeries")}
               cols={[
                 { h: "Patient", r: (s) => s.patient_name || "-" },
@@ -853,13 +989,88 @@ export default function StaffDashboard() {
                     r: (r) =>
                       r.status === "pending" ? (
                         <>
-                          <button onClick={() => decide(r, "approved")}>Approve</button>{" "}
-                          <button onClick={() => decide(r, "rejected")}>Reject</button>
+                          <button onClick={() => decideBlood(r, "approved")}>Approve</button>{" "}
+                          <button onClick={() => decideBlood(r, "rejected")}>Reject</button>
                         </>
                       ) : (
                         "-"
                       ),
                   },
+                ]}
+              />
+            </section>
+          </>
+        )}
+
+        {page === "ambulance" && (
+          <>
+            <section className="staff-section">
+              <h1>Ambulance Requests</h1>
+              <Table
+                rowKey="request_id"
+                empty="No ambulance requests."
+                rows={list("ambulanceRequests")}
+                cols={[
+                  { h: "ID", r: (r) => r.request_id },
+                  { h: "Patient", r: (r) => r.patient_name || "-" },
+                  { h: "Pickup", r: (r) => r.pickup_location },
+                  { h: "Drop", r: (r) => r.drop_location || "-" },
+                  { h: "Vehicle", r: (r) => (r.vehicle_no ? `${r.vehicle_no} (${r.vehicle_type})` : "-") },
+                  { h: "Status", r: (r) => r.status },
+                  {
+                    h: "Action",
+                    r: (r) => {
+                      if (r.status === "pending") {
+                        return (
+                          <>
+                            <select
+                              value={val(`amb:${r.request_id}`, "ambulance_id", "")}
+                              onChange={(e) => setF(`amb:${r.request_id}`, "ambulance_id", e.target.value)}
+                            >
+                              <option value="">Select vehicle</option>
+                              {availableVehicles.map((v) => (
+                                <option key={v.ambulance_id} value={v.ambulance_id}>
+                                  {v.vehicle_no} ({v.vehicle_type}) - {money(v.base_fare)}
+                                </option>
+                              ))}
+                            </select>{" "}
+                            <button onClick={() => assignAmbulance(r)}>Assign</button>
+                          </>
+                        );
+                      }
+
+                      if (r.status === "assigned" && mine(r)) {
+                        return (
+                          <>
+                            <input
+                              type="number"
+                              placeholder="Charge"
+                              style={{ width: 80 }}
+                              value={val(`amb:${r.request_id}`, "charge", r.base_fare ?? "")}
+                              onChange={(e) => setF(`amb:${r.request_id}`, "charge", e.target.value)}
+                            />{" "}
+                            <button onClick={() => completeAmbulance(r)}>Complete Trip</button>
+                          </>
+                        );
+                      }
+
+                      return "-";
+                    },
+                  },
+                ]}
+              />
+            </section>
+
+            <section className="staff-section">
+              <h2>Fleet</h2>
+              <Table
+                rowKey="ambulance_id"
+                rows={list("vehicles")}
+                cols={[
+                  { h: "Vehicle No.", r: (v) => v.vehicle_no },
+                  { h: "Type", r: (v) => v.vehicle_type },
+                  { h: "Base Fare", r: (v) => money(v.base_fare) },
+                  { h: "Status", r: (v) => v.status },
                 ]}
               />
             </section>
@@ -923,6 +1134,55 @@ export default function StaffDashboard() {
                 />
 
                 <button type="submit">Create Bill</button>
+              </form>
+            </section>
+
+            <section className="staff-section">
+              <h2>Collect Payment at Counter</h2>
+              <form className="staff-form" onSubmit={collectPayment}>
+                <label>Bill</label>
+                <select
+                  value={payForm.bill_id}
+                  onChange={(e) => setPayForm({ ...payForm, bill_id: e.target.value })}
+                  required
+                >
+                  <option value="">Select Bill</option>
+                  {list("bills")
+                    .filter((b) => ["unpaid", "partial"].includes(b.status))
+                    .map((b) => (
+                      <option key={b.bill_id} value={b.bill_id}>
+                        Bill #{b.bill_id} - {b.patient_name || "?"} -{" "}
+                        {money(Number(b.net_amount) - Number(b.paid_amount))} due
+                      </option>
+                    ))}
+                </select>
+
+                <label>Amount</label>
+                <input
+                  type="number"
+                  value={payForm.amount}
+                  onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
+                  required
+                />
+
+                <label>Method</label>
+                <select
+                  value={payForm.method}
+                  onChange={(e) => setPayForm({ ...payForm, method: e.target.value })}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="mobile_banking">Mobile Banking</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </select>
+
+                <label>Reference No</label>
+                <input
+                  value={payForm.ref_no}
+                  onChange={(e) => setPayForm({ ...payForm, ref_no: e.target.value })}
+                />
+
+                <button type="submit">Collect Payment</button>
               </form>
             </section>
 

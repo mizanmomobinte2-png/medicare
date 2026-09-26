@@ -30,6 +30,10 @@ const WORK_ROLES = {
     label: "Complaint Handler",
     modules: ["complaints"],
   },
+  AMBULANCE_COORD: {
+    label: "Ambulance Coordinator",
+    modules: ["ambulance"],
+  },
 };
 
 // Every staff member sees these, whatever the work role is

@@ -19,6 +19,7 @@ const authorize = require("../middleware/roleMiddleware");
 // =========================================
 // GET ALL DOCTORS
 // ADMIN + PATIENT + DOCTOR
+// (any logged-in user, since patients browse doctors to book)
 // =========================================
 
 router.get(
@@ -40,6 +41,7 @@ doc.phone,
 doc.status,
 doc.specialization,
 doc.dept_id,
+doc.visit_fee,
 d.dept_name
 
 
@@ -229,7 +231,9 @@ status:doctor.status,
 
 specialization:doctor.specialization,
 
-dept_id:doctor.dept_id
+dept_id:doctor.dept_id,
+
+visit_fee:doctor.visit_fee
 
 
 }
@@ -290,7 +294,9 @@ phone,
 
 specialization,
 
-dept_id
+dept_id,
+
+visit_fee
 
 }=req.body;
 
@@ -376,14 +382,16 @@ status,
 
 specialization,
 
-dept_id
+dept_id,
+
+visit_fee
 
 )
 
 
 VALUES
 
-($1,$2,$3,$4,$5,$6,$7,$8)
+($1,$2,$3,$4,$5,$6,$7,$8,$9)
 
 
 RETURNING *
@@ -406,7 +414,9 @@ phone || null,
 
 specialization || null,
 
-dept_id || null
+dept_id || null,
+
+visit_fee === "" || visit_fee === undefined ? 0 : Number(visit_fee)
 
 ]
 
@@ -443,7 +453,7 @@ error:err.message
 });
 // =========================================
 // GET SINGLE DOCTOR
-// ADMIN + SAME DOCTOR
+// ADMIN + SAME DOCTOR + PATIENT (to see fee before booking)
 // =========================================
 
 router.get(
@@ -467,21 +477,6 @@ req.user.id !== doctorId
 return res.status(403).json({
 
 message:"You can access only your own profile"
-
-});
-
-}
-
-
-
-if(
-req.user.role!=="admin" &&
-req.user.role!=="doctor"
-){
-
-return res.status(403).json({
-
-message:"Access forbidden"
 
 });
 
@@ -532,7 +527,11 @@ error:"Doctor not found"
 
 
 
-res.json(result.rows[0]);
+const doctor = result.rows[0];
+
+delete doctor.password;
+
+res.json(doctor);
 
 
 
@@ -589,7 +588,9 @@ status,
 
 specialization,
 
-dept_id
+dept_id,
+
+visit_fee
 
 }=req.body;
 
@@ -619,10 +620,12 @@ status=COALESCE($5,status),
 
 specialization=COALESCE($6,specialization),
 
-dept_id=COALESCE($7,dept_id)
+dept_id=COALESCE($7,dept_id),
+
+visit_fee=COALESCE($8,visit_fee)
 
 
-WHERE doctor_id=$8
+WHERE doctor_id=$9
 
 
 RETURNING *
@@ -645,6 +648,8 @@ status,
 specialization,
 
 dept_id,
+
+visit_fee === "" || visit_fee === undefined ? null : Number(visit_fee),
 
 req.params.id
 

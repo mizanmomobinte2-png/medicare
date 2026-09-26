@@ -14,6 +14,7 @@ const BILL_BASE_CTE = `
       COALESCE(
         ad.patient_id,
         a.patient_id,
+        amb.patient_id,
 
         (
           SELECT s.patient_id
@@ -41,6 +42,9 @@ const BILL_BASE_CTE = `
         WHEN b.adm_id IS NOT NULL
           THEN 'admission'
 
+        WHEN b.ambulance_request_id IS NOT NULL
+          THEN 'ambulance'
+
         WHEN EXISTS (
           SELECT 1
           FROM billing_surgery bs
@@ -64,6 +68,9 @@ const BILL_BASE_CTE = `
 
         WHEN b.adm_id IS NOT NULL
           THEN b.adm_id
+
+        WHEN b.ambulance_request_id IS NOT NULL
+          THEN b.ambulance_request_id
 
         WHEN EXISTS (
           SELECT 1
@@ -99,15 +106,22 @@ const BILL_BASE_CTE = `
 
     LEFT JOIN appointment a
       ON b.appt_id = a.appt_id
+
+    LEFT JOIN ambulance_request amb
+      ON b.ambulance_request_id = amb.request_id
   )
 `;
 
 
 // =====================================
-// GET ALL BILLS
+// GET ALL BILLS (admin / staff only)
 // =====================================
 
 router.get("/", async (req, res) => {
+  if (req.user.role === "patient") {
+    return res.status(403).json({ error: "Access forbidden" });
+  }
+
   try {
     const result = await pool.query(`
       ${BILL_BASE_CTE}
@@ -157,12 +171,22 @@ router.get("/", async (req, res) => {
 
 
 // =====================================
-// GET BILLS HANDLED BY ONE STAFF
+// GET BILLS HANDLED BY ONE STAFF (admin, or that staff)
 // =====================================
 
 router.get(
   "/staff/:staffId",
   async (req, res) => {
+    const staffId = Number(req.params.staffId);
+
+    if (req.user.role === "staff" && req.user.id !== staffId) {
+      return res.status(403).json({ error: "You can access only your own bills" });
+    }
+
+    if (!["admin", "staff"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Access forbidden" });
+    }
+
     try {
       const result = await pool.query(
         `
@@ -204,7 +228,7 @@ router.get(
           bb.bill_date DESC,
           bb.bill_id DESC
         `,
-        [req.params.staffId]
+        [staffId]
       );
 
       res.json(result.rows);
@@ -223,12 +247,18 @@ router.get(
 
 
 // =====================================
-// GET BILLS OF ONE PATIENT
+// GET BILLS OF ONE PATIENT (that patient, or admin/staff)
 // =====================================
 
 router.get(
   "/patient/:patientId",
   async (req, res) => {
+    const patientId = Number(req.params.patientId);
+
+    if (req.user.role === "patient" && req.user.id !== patientId) {
+      return res.status(403).json({ error: "You can access only your own bills" });
+    }
+
     try {
       const result = await pool.query(
         `
@@ -270,7 +300,7 @@ router.get(
           bb.bill_date DESC,
           bb.bill_id DESC
         `,
-        [req.params.patientId]
+        [patientId]
       );
 
       res.json(result.rows);
@@ -289,7 +319,7 @@ router.get(
 
 
 // =====================================
-// GET SINGLE BILL
+// GET SINGLE BILL (owner patient, or admin/staff)
 // =====================================
 
 router.get("/:id", async (req, res) => {
@@ -326,6 +356,13 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({
         error: "Bill not found",
       });
+    }
+
+    if (
+      req.user.role === "patient" &&
+      Number(bill.rows[0].patient_id) !== req.user.id
+    ) {
+      return res.status(403).json({ error: "This bill does not belong to you" });
     }
 
     const labTests = await pool.query(
@@ -393,6 +430,9 @@ router.get("/:id", async (req, res) => {
 
 // =====================================
 // STAFF CREATE BILL
+// Kept for backward compatibility; the staff dashboard now uses
+// POST /api/staff-work/billing/create (goes through sp_create_bill).
+// Restricted to admin - see server.js LEGACY_STAFF_ROUTES.
 //
 // source_type:
 // appointment
@@ -461,10 +501,6 @@ router.post(
       let patientId = null;
       let appointmentId = null;
       let admissionId = null;
-
-      // =================================
-      // APPOINTMENT
-      // =================================
 
       if (
         source_type ===
@@ -543,10 +579,6 @@ router.post(
           Number(source_id);
       }
 
-      // =================================
-      // ADMISSION
-      // =================================
-
       else if (
         source_type ===
         "admission"
@@ -606,10 +638,6 @@ router.post(
           Number(source_id);
       }
 
-      // =================================
-      // SURGERY
-      // =================================
-
       else if (
         source_type === "surgery"
       ) {
@@ -666,10 +694,6 @@ router.post(
         patientId =
           source.rows[0].patient_id;
       }
-
-      // =================================
-      // LAB TEST
-      // =================================
 
       else if (
         source_type === "labtest"
@@ -739,10 +763,6 @@ router.post(
         });
       }
 
-      // =================================
-      // CREATE BILL
-      // =================================
-
       const billResult =
         await client.query(
           `
@@ -785,10 +805,6 @@ router.post(
       const billId =
         billResult.rows[0].bill_id;
 
-      // =================================
-      // SURGERY JUNCTION
-      // =================================
-
       if (
         source_type === "surgery"
       ) {
@@ -808,10 +824,6 @@ router.post(
           ]
         );
       }
-
-      // =================================
-      // LAB TEST JUNCTION
-      // =================================
 
       if (
         source_type === "labtest"
@@ -873,7 +885,7 @@ router.post(
 
 
 // =====================================
-// STAFF APPROVE BILL
+// STAFF APPROVE BILL (admin - legacy path; staff use /api/staff-work/billing/:id/approve)
 // pending -> unpaid
 // =====================================
 
@@ -943,7 +955,7 @@ router.patch(
 
 
 // =====================================
-// UPDATE BILL
+// UPDATE BILL (admin only, see server.js)
 // =====================================
 
 router.put("/:id", async (req, res) => {
@@ -1016,7 +1028,7 @@ router.put("/:id", async (req, res) => {
 
 
 // =====================================
-// DELETE BILL
+// DELETE BILL (admin only, see server.js)
 // =====================================
 
 router.delete("/:id", async (req, res) => {

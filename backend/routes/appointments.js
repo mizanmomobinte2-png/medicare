@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-
+const { verifyToken } = require("../middleware/authMiddleware");
+const authorize = require("../middleware/roleMiddleware");
 
 // =====================================
 // GET ALL APPOINTMENTS
@@ -78,6 +79,8 @@ a.appt_time,
 a.status,
 a.reason,
 a.notes,
+a.fee,
+a.reject_reason,
 
 
 p.name AS patient_name,
@@ -174,7 +177,7 @@ ON a.patient_id=p.patient_id
 WHERE
 a.doctor_id=$1
 
-AND a.appt_date=CURRENT_DATE
+AND a.appt_date=(SELECT fn_now_dhaka()::date)
 
 
 ORDER BY a.appt_time
@@ -223,13 +226,13 @@ SELECT
 
 
 COUNT(*) FILTER(
-WHERE appt_date=CURRENT_DATE
+WHERE appt_date=(SELECT fn_now_dhaka()::date)
 )
 AS today_appointments,
 
 
 COUNT(*) FILTER(
-WHERE appt_date>CURRENT_DATE
+WHERE appt_date>(SELECT fn_now_dhaka()::date)
 )
 AS upcoming_appointments,
 
@@ -354,6 +357,8 @@ a.appt_time,
 a.status,
 a.reason,
 a.notes,
+a.fee,
+a.reject_reason,
 
 
 p.name AS patient_name,
@@ -431,7 +436,7 @@ AS pending_appointments,
 
 
 COUNT(*) FILTER(
-WHERE appt_date>=CURRENT_DATE
+WHERE appt_date>=(SELECT fn_now_dhaka()::date)
 
 AND status NOT IN(
 'completed',
@@ -500,6 +505,7 @@ a.appt_time,
 a.status,
 a.reason,
 a.notes,
+a.fee,
 
 
 p.name AS patient_name,
@@ -635,6 +641,9 @@ error:err.message
 
 // =====================================
 // CREATE APPOINTMENT
+// (kept for admin/manual use; patients use
+//  POST /api/patient-dashboard/appointments/book instead,
+//  which goes through sp_book_appointment)
 // =====================================
 
 router.post(
@@ -759,7 +768,7 @@ error:err.message
 
 
 // =====================================
-// UPDATE APPOINTMENT
+// UPDATE APPOINTMENT (admin only, see server.js legacy guard)
 // =====================================
 
 router.put(
@@ -901,11 +910,19 @@ error:err.message
 
 
 // =====================================
-// DOCTOR UPDATE STATUS + NOTES
+// DOCTOR UPDATE APPOINTMENT
+//
+// Front desk staff owns confirm/reject (see /api/staff-work).
+// A doctor may only:
+//   - edit notes at any time
+//   - mark a CONFIRMED appointment as 'completed' once the visit is done
+// This route requires a doctor (or admin) token - see server.js LEGACY_STAFF_ROUTES.
 // =====================================
 
 router.patch(
 "/:id/doctor-update",
+verifyToken,
+authorize("doctor", "admin"),
 async(req,res)=>{
 
 
@@ -920,6 +937,37 @@ notes
 
 
 try{
+
+
+if (status && status !== "completed") {
+  return res.status(400).json({
+    error:
+      "Doctors can only mark a confirmed appointment as completed. Front desk staff confirm or reject appointments.",
+  });
+}
+
+
+const current = await pool.query(
+  `SELECT status, doctor_id FROM appointment WHERE appt_id = $1`,
+  [req.params.id]
+);
+
+if (current.rows.length === 0) {
+  return res.status(404).json({ error: "Appointment not found" });
+}
+
+if (
+  req.user.role === "doctor" &&
+  Number(current.rows[0].doctor_id) !== req.user.id
+) {
+  return res.status(403).json({ error: "This is not your appointment" });
+}
+
+if (status === "completed" && current.rows[0].status !== "confirmed") {
+  return res.status(409).json({
+    error: "Only a confirmed appointment can be marked completed",
+  });
+}
 
 
 const result =
@@ -994,7 +1042,8 @@ error:err.message
 
 
 // =====================================
-// STAFF ASSIGN / UPDATE APPOINTMENT
+// STAFF ASSIGN / UPDATE APPOINTMENT (admin only legacy path)
+// Front desk staff should use /api/staff-work/appointments/... instead.
 // =====================================
 
 router.patch(

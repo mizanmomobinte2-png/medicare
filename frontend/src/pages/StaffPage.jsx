@@ -9,6 +9,7 @@ const WORK_ROLE_KEYS = [
   "BLOOD_BANK",
   "BILLING",
   "COMPLAINT",
+  "AMBULANCE_COORD",
 ];
 
 export default function StaffPage() {
